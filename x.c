@@ -1,13 +1,17 @@
-#define USAGE "usage: x [-i | -r]\n"
+#define VERSION "2025-03-08 (https://github.com/danielsource/x.git)"
+#define USAGE "usage: x [-i|-r|-v]\n"
 
 #include <limits.h>
 #include <stdio.h>
-#include <stdint.h>
 
 #define HEXCOLS 16
 
 #define BUFSIZE 8192
 static unsigned char buf[BUFSIZE];
+
+#if BUFSIZE % HEXCOLS != 0
+#error "BUFSIZE must be multiple of HEXCOLS"
+#endif
 
 enum {
 	ErrNone = 0,
@@ -15,12 +19,13 @@ enum {
 	ErrFread,
 	ErrPrint,
 	ErrFileBig,
+	ErrNoImpl,
 	ErrCount
 };
 
-static int printascii(FILE *out, const unsigned char *data, size_t n)
+static int printascii(FILE *out, const unsigned char *data, unsigned long n)
 {
-	size_t i;
+	unsigned long i;
 	int nc = 0;
 
 	for (i = 0; i < n; ++i) {
@@ -39,8 +44,7 @@ static int printascii(FILE *out, const unsigned char *data, size_t n)
 
 static int hexdump(FILE *out, FILE *in)
 {
-	unsigned long off = 0;
-	size_t i, j, n, rem;
+	unsigned long i, j, n, rem, off = 0;
 
 	clearerr(in);
 	for (;;) {
@@ -75,11 +79,14 @@ static int hexdump(FILE *out, FILE *in)
 		if (!rem)
 			continue;
 		if (rem & 1) {
-			fputs("   ", out);
+			if (fputs("   ", out) == EOF)
+				return ErrPrint;
 			for (j = 0; j < ((HEXCOLS-1) - rem)/2; ++j)
 				fputs("     ", out);
 		} else {
-			for (j = 0; j < (HEXCOLS - rem)/2; ++j)
+			if (fputs("     ", out) == EOF)
+				return ErrPrint;
+			for (j = 0; j < (HEXCOLS - rem)/2 - 1; ++j)
 				fputs("     ", out);
 		}
 		fputc(' ', out);
@@ -93,12 +100,45 @@ static int hexdump(FILE *out, FILE *in)
 
 static int incdump(FILE *out, FILE *in)
 {
+	unsigned long i, n, size = 0;
+
+	if (fputs("unsigned char dump[] = {", out) == EOF)
+		return ErrPrint;
+
+	clearerr(in);
+	for (;;) {
+		if (!(n = fread(buf, 1, BUFSIZE, in))) {
+			if (ferror(in))
+				return ErrFread;
+			break;
+		}
+
+		if (size > 0) {
+			if (fprintf(out, ",0x%02x", buf[0]) != 5)
+				return ErrPrint;
+		} else {
+			if (fprintf(out, "0x%02x", buf[0]) != 4)
+				return ErrPrint;
+		}
+
+		for (i = 1; i < n; ++i)
+			fprintf(out, ",0x%02x", buf[i]);
+
+		if (ULONG_MAX - size < n)
+			return ErrFileBig;
+		size += n;
+	}
+
+	if (fprintf(out, "};\nunsigned long dumpsize = %lu;\n", size) < 31)
+		return ErrPrint;
+
 	return ErrNone;
 }
 
+/* TODO: implement revdump */
 static int revdump(FILE *out, FILE *in)
 {
-	return ErrNone;
+	return ErrNoImpl;
 }
 
 int main(int argc, char *argv[])
@@ -110,6 +150,8 @@ int main(int argc, char *argv[])
 			return incdump(stdout, stdin);
 		else if (argv[1][1] == 'r' && argv[1][2] == '\0')
 			return revdump(stdout, stdin);
+		else if (argv[1][1] == 'v' && argv[1][2] == '\0')
+			return puts(VERSION), ErrNone;
 	}
 
 	fputs(USAGE, stderr);

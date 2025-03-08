@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS = -std=c89 -O0 -g3 -fanalyzer -Wall -Wextra -Wpedantic
+CFLAGS = -std=c89 -O0 -g3 -fanalyzer -Wall -Wpedantic
 
-all: x xs
+all: x
 
 clean:
 	rm -f x xs

@@ -1,7 +1,7 @@
-This directory contains naive implementations in C of the following:
+(work in progress) This directory contains naive implementations in C of the following:
 
 x - stupid simple hex dump (xxd(1) like)
-usage: x [-i | -r]
+usage: x [-i|-r|-v]
 example: x < a.out > a.hex
 example: vim a.hex; x -r < a.hex > a.out
 example: x -i < a.out > a.h
