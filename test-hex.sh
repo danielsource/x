@@ -2,7 +2,7 @@
 
 set -e
 
-for f in readme.txt x.c testfiles-hex/* /bin/sh; do
+for f in readme.txt x.c testfiles-hex/* x /bin/sh; do
 	echo "test $f"
 	./x < "$f" > x.hex
 	xxd < "$f" > xxd.hex
@@ -11,4 +11,5 @@ for f in readme.txt x.c testfiles-hex/* /bin/sh; do
 	echo
 done
 
+rm x.hex xxd.hex
 echo 'ok!'

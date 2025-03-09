@@ -1,5 +1,5 @@
-#define VERSION "2025-03-08 (https://github.com/danielsource/x.git)"
-#define USAGE "usage: x [-i|-r|-v]\n"
+#define VERSION "2025-03-09 (https://github.com/danielsource/x.git)"
+#define USAGE "usage: x [-i|-v]\n"
 
 #include <limits.h>
 #include <stdio.h>
@@ -14,13 +14,15 @@ static unsigned char buf[BUFSIZE];
 #endif
 
 enum {
-	ErrNone = 0,
-	ErrWrongArg,
-	ErrFread,
-	ErrPrint,
-	ErrFileBig,
-	ErrNoImpl,
-	ErrCount
+	ErrNone     = 0,
+	ErrWrongArg = 1,
+	ErrWrongFmt = 2,
+	ErrFileBig  = 3,
+	ErrReadBin  = 4,
+	ErrReadLine = 5,
+	ErrWriteBin = 6,
+	ErrPrint    = 7,
+	ErrNoImpl   = 8
 };
 
 static int printascii(FILE *out, const unsigned char *data, unsigned long n)
@@ -46,13 +48,11 @@ static int hexdump(FILE *out, FILE *in)
 {
 	unsigned long i, j, n, rem, off = 0;
 
-	clearerr(in);
-	for (;;) {
-		if (!(n = fread(buf, 1, BUFSIZE, in))) {
-			if (ferror(in))
-				return ErrFread;
+	do {
+		if ((n = fread(buf, 1, BUFSIZE, in)) < BUFSIZE && ferror(in))
+			return ErrReadBin;
+		else if (!n)
 			break;
-		}
 
 		if (fprintf(out, "%08lx: ", off) < 8)
 			return ErrPrint;
@@ -93,7 +93,7 @@ static int hexdump(FILE *out, FILE *in)
 		if (printascii(out, buf+i - rem, rem) != rem)
 			return ErrPrint;
 		fputc('\n', out);
-	}
+	} while (!feof(in));
 
 	return ErrNone;
 }
@@ -105,13 +105,11 @@ static int incdump(FILE *out, FILE *in)
 	if (fputs("unsigned char dump[] = {", out) == EOF)
 		return ErrPrint;
 
-	clearerr(in);
-	for (;;) {
-		if (!(n = fread(buf, 1, BUFSIZE, in))) {
-			if (ferror(in))
-				return ErrFread;
+	do {
+		if ((n = fread(buf, 1, BUFSIZE, in)) < BUFSIZE && ferror(in))
+			return ErrReadBin;
+		else if (!n)
 			break;
-		}
 
 		if (size > 0) {
 			if (fprintf(out, ",0x%02x", buf[0]) != 5)
@@ -127,7 +125,7 @@ static int incdump(FILE *out, FILE *in)
 		if (ULONG_MAX - size < n)
 			return ErrFileBig;
 		size += n;
-	}
+	} while (!feof(in));
 
 	if (fprintf(out, "};\nunsigned long dumpsize = %lu;\n", size) < 31)
 		return ErrPrint;
@@ -136,6 +134,7 @@ static int incdump(FILE *out, FILE *in)
 }
 
 /* TODO: implement revdump */
+/* revdump _minimal_ format: <colon><hexadecimals><space><space> (offset and ascii is ignored) */
 static int revdump(FILE *out, FILE *in)
 {
 	return ErrNoImpl;
