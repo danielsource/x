@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -std=c89 -O0 -g3 -Wall -Wpedantic
+CFLAGS = -std=c89 -O2 -g3 -Wall -Wpedantic
 
 all: x
 

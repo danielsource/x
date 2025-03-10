@@ -1,10 +1,23 @@
-#define VERSION "2025-03-09_2 (https://github.com/danielsource/x.git)"
+#define VERSION "2025-03-10 (https://github.com/danielsource/x.git)"
 #define USAGE "usage: x [-i|-v]\n"
 
 #include <limits.h>
 #include <stdio.h>
 
 #define HEXCOLS 16
+#define OFFSET "%08lx:"
+#define XX "%02x"
+#define XXPAD "  "
+#define HEXFMT OFFSET \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX \
+	" " XX XX "  "
+#define HEXFMT_MINLEN 51
 
 #define BUFSIZE 8192
 static unsigned char buf[BUFSIZE];
@@ -26,76 +39,78 @@ static const char *errmsg[ErrCount] = {
 	"x: not implemented\n",
 };
 
-static int printascii(FILE *out, const unsigned char *data, unsigned long n)
+static void printascii(FILE *out, const unsigned char *data, unsigned long n)
 {
 	unsigned long i;
-	int nc = 0;
 
-	for (i = 0; i < n; ++i) {
-		if (data[i] >= ' ' && data[i] <= '~') {
-			if (fputc(data[i], out) == EOF)
-				return EOF;
-		} else {
-			if (fputc('.', out) == EOF)
-				return EOF;
-		}
-		++nc;
-	}
-
-	return nc;
+	for (i = 0; i < n; ++i)
+		fputc(data[i] >= ' ' && data[i] <= '~' ? data[i] : '.', out);
 }
 
 static int hexdump(FILE *out, FILE *in)
 {
-	unsigned long i, j, n, rem, off = 0;
+	unsigned long i, n, rem, off = 0;
 
 	do {
-		if ((n = fread(buf, 1, BUFSIZE, in)) != BUFSIZE) {
-			if (ferror(in))
-				return ErrInput;
-			else if (!n)
+		n = fread(buf, 1, BUFSIZE, in);
+		if (ferror(in))
+			return ErrInput;
+		else if (ULONG_MAX - off < n)
+			return ErrFileBig;
+		else if (n < HEXCOLS) {
+			if (!n)
 				break;
+			i = 0;
+			rem = n;
+			goto padding;
 		}
 
-		if (fprintf(out, "%08lx: ", off) < 10)
+		if (fprintf(out, HEXFMT, off,
+		            buf [0], buf [1], buf [2], buf [3],
+		            buf [4], buf [5], buf [6], buf [7],
+		            buf [8], buf [9], buf[10], buf[11],
+		            buf[12], buf[13], buf[14], buf[15]) < HEXFMT_MINLEN)
 			return ErrOutput;
-		for (i = 0; i < n; ++i) {
-			if (fprintf(out, "%02x", buf[i]) != 2)
-				return ErrOutput;
-			if (++i == n)
-				break;
-			fprintf(out, "%02x ", buf[i]);
-			if (!((i+1) & (HEXCOLS-1))) {
-				if (ULONG_MAX - off < HEXCOLS)
-					return ErrFileBig;
-				off += HEXCOLS;
-				fputc(' ', out);
-				if (printascii(out, buf+i - (HEXCOLS-1), HEXCOLS) != HEXCOLS)
-					return ErrOutput;
-				fputc('\n', out);
-				if (i+1 != n)
-					fprintf(out, "%08lx: ", off);
-			}
+		printascii(out, buf, HEXCOLS);
+		fputc('\n', out);
+
+		off += HEXCOLS;
+
+		for (i = HEXCOLS; i < n-HEXCOLS; i += HEXCOLS) {
+			fprintf(out, HEXFMT, off,
+			        buf   [i], buf [i+1], buf [i+2], buf [i+3],
+			        buf [i+4], buf [i+5], buf [i+6], buf [i+7],
+			        buf [i+8], buf [i+9], buf[i+10], buf[i+11],
+			        buf[i+12], buf[i+13], buf[i+14], buf[i+15]);
+			printascii(out, buf+i, HEXCOLS);
+			fputc('\n', out);
+
+			off += HEXCOLS;
 		}
 
-		rem = i & (HEXCOLS-1);
+		rem = n - i;
 		if (!rem)
 			continue;
+
+padding:
+		fprintf(out, OFFSET " ", off);
 		if (rem & 1) {
-			if (fputs("   ", out) == EOF)
-				return ErrOutput;
-			for (j = 0; j < ((HEXCOLS-1) - rem)/2; ++j)
-				fputs("     ", out);
+			for (; i < n-1; i += 2)
+				fprintf(out, XX XX " ", buf[i], buf[i+1]);
+			fprintf(out, XX XXPAD " ", buf[i]);
+			for (i = 0; i < HEXCOLS-rem - 1; i += 2)
+				fputs(XXPAD XXPAD " ", out);
 		} else {
-			if (fputs("     ", out) == EOF)
-				return ErrOutput;
-			for (j = 0; j < (HEXCOLS - rem)/2 - 1; ++j)
-				fputs("     ", out);
+			for (; i < n; i += 2)
+				fprintf(out, XX XX " ", buf[i], buf[i+1]);
+			for (i = 0; i < HEXCOLS-rem; i += 2)
+				fputs(XXPAD XXPAD " ", out);
 		}
 		fputc(' ', out);
-		if (printascii(out, buf+i - rem, rem) != rem)
-			return ErrOutput;
+		printascii(out, buf+n - rem, rem);
 		fputc('\n', out);
+
+		off += HEXCOLS;
 	} while (!feof(in));
 
 	return ErrNone;
@@ -109,31 +124,26 @@ static int incdump(FILE *out, FILE *in)
 		return ErrOutput;
 
 	do {
-		if ((n = fread(buf, 1, BUFSIZE, in)) != BUFSIZE) {
-			if (ferror(in))
-				return ErrInput;
-			else if (!n)
-				break;
-		}
+		n = fread(buf, 1, BUFSIZE, in);
+		if (ferror(in))
+			return ErrInput;
+		else if (ULONG_MAX - size < n)
+			return ErrFileBig;
+		else if (!n)
+			break;
 
-		if (size > 0) {
-			if (fprintf(out, ",0x%02x", buf[0]) != 5)
-				return ErrOutput;
-		} else {
-			if (fprintf(out, "0x%02x", buf[0]) != 4)
-				return ErrOutput;
-		}
+		if (size > 0)
+			fprintf(out, ",0x%02x", buf[0]);
+		else
+			fprintf(out, "0x%02x", buf[0]);
 
 		for (i = 1; i < n; ++i)
 			fprintf(out, ",0x%02x", buf[i]);
 
-		if (ULONG_MAX - size < n)
-			return ErrFileBig;
 		size += n;
 	} while (!feof(in));
 
-	if (fprintf(out, "};\nunsigned long dumpsize = %lu;\n", size) < 31)
-		return ErrOutput;
+	fprintf(out, "};\nunsigned long dumpsize = %lu;\n", size);
 
 	return ErrNone;
 }
