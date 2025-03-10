@@ -1,14 +1,15 @@
-(work in progress) This directory contains naive implementations in C of the following:
+This directory contains _naive_ implementations in C of the following:
 
 x - stupid simple hex dump (xxd(1) like)
-usage: x [-i|-r|-v]
+usage: x [-i|-v]
 example: x < a.out > a.hex
-example: vim a.hex; x -r < a.hex > a.out
 example: x -i < a.out > a.h
 
 xs - search hex string
-usage: xs HEXSTRING
+usage: xs HEXOCTETS
 example: xs deadbeef < file.bin  # outputs xxd-like offset if found
+
+Both programs assume the use of ASCII at compile time and runtime.
 
 
 Build instructions
@@ -28,3 +29,7 @@ cc xs.c -o xs
 00000070: 0800 0000 0000 0000 0300 0000 0400 0000  ................
 00000080: 1803 0000 0000 0000 1803 0000 0000 0000  ................
 00000090: 1803 0000 0000 0000 1c00 0000 0000 0000  ................
+
+
+---
+TODO: implement x -r

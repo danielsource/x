@@ -2,25 +2,38 @@
 
 set -e
 
-bigfile=64M
-dd if=/dev/urandom of="$bigfile" bs=1M count=64
+mkdir -p test
 
-i=0; while [ $i -lt 1024 ]; do
-	dd if="$bigfile" bs=1 count=$i 2>/dev/null | ./x >x.hex
-	dd if="$bigfile" bs=1 count=$i 2>/dev/null | xxd >xxd.hex
-	diff xxd.hex x.hex
+bigfile=test/64MiB
+if [ ! -e "$bigfile" ]; then
+	dd if=/dev/urandom of="$bigfile" bs=1M count=64 2>/dev/null
+fi
+
+echo "test x == xxd up to 512 bytes"
+i=0; while [ $i -le 512 ]; do
+	dd if="$bigfile" bs=1 count=$i 2>/dev/null | ./x >test/x.hex
+	dd if="$bigfile" bs=1 count=$i 2>/dev/null | xxd >test/xxd.hex
+	diff test/xxd.hex test/x.hex
 	i=$((i+1))
 done
 
 echo
-echo "time x <"$bigfile""
-time -p x <"$bigfile" >x.hex
+echo "time x <$bigfile"
+time -p ./x <"$bigfile" >test/x.hex
+
+if [ -x ./rexxd ]; then
+	echo
+	echo "time rexxd <$bigfile"
+	time -p ./rexxd <"$bigfile" >test/rexxd.hex
+fi
 
 echo
-echo "time xxd <"$bigfile""
-time -p xxd <"$bigfile" >xxd.hex
+echo "time xxd <$bigfile"
+time -p xxd <"$bigfile" >test/xxd.hex
 
 echo
-diff xxd.hex x.hex
+echo "test x == xxd with $bigfile"
+diff test/xxd.hex test/x.hex
 
+echo
 echo 'ok!'
