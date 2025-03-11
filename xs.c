@@ -1,16 +1,14 @@
-/* XXX: I haven't tested this much, it might be buggy */
-
-#define USAGE "usage: xs HEXOCTETS\n"
+#define VERSION "xs 2025-03-11 https://github.com/danielsource/x.git"
+#define USAGE "usage: xs HEX_OCTETS\n"
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
 
 #define READCHUNK 8192
 
-static size_t readbin(unsigned char **out, FILE *f)
+static unsigned long readbin(unsigned char **out, FILE *f)
 {
-	size_t sz = 0, n;
+	unsigned long sz = 0, n;
 	unsigned char *buf;
 
 	*out = NULL;
@@ -25,7 +23,7 @@ static size_t readbin(unsigned char **out, FILE *f)
 		*out = buf;
 
 		n = fread(buf+sz, 1, READCHUNK, f);
-		if (ferror(f) || ULONG_MAX - sz < n) {
+		if (ferror(f)) {
 			free(buf);
 			*out = NULL;
 			return 0;
@@ -43,8 +41,8 @@ static size_t readbin(unsigned char **out, FILE *f)
 static int printhexmatch(
 		const unsigned char *hay,
 		const unsigned char *n,
-		size_t haylen,
-		size_t nlen)
+		unsigned long haylen,
+		unsigned long nlen)
 {
 	const unsigned char *hayorig, *hp, *np;
 	unsigned long off = 0;
@@ -82,13 +80,25 @@ int main(int argc, char *argv[])
 {
 	enum { ErrNone, ErrNoMatch, ErrBadArg, ErrIO };
 
-	size_t i, j, l, buflen, hexlen;
+	unsigned long i, j, l, buflen, hexlen;
 	char c;
 	unsigned char *buf, *hex;
 	int ret;
 
-	if (argc != 2)
+	if (argc != 2) {
+		fputs(USAGE, stderr);
 		return ErrBadArg;
+	}
+
+	if (argv[1][0] == '-') {
+		if (argv[1][1] == 'v' && argv[1][2] == '\0') {
+			puts(VERSION);
+			return ErrNone;
+		} else {
+			fputs(USAGE, stderr);
+			return ErrBadArg;
+		}
+	}
 
 	for (l = 0; (c = argv[1][l]) != '\0'; ++l) {
 		switch (c) {

@@ -1,7 +1,6 @@
-#define VERSION "2025-03-10 (https://github.com/danielsource/x.git)"
+#define VERSION "x 2025-03-11 https://github.com/danielsource/x.git"
 #define USAGE "usage: x [-i|-v]\n"
 
-#include <limits.h>
 #include <stdio.h>
 
 #define HEXCOLS 16
@@ -26,18 +25,7 @@ static unsigned char buf[BUFSIZE];
 #error "BUFSIZE must be multiple of HEXCOLS"
 #endif
 
-enum { ErrNone, ErrBadArg, ErrInput, ErrOutput,
-       ErrBadFmt, ErrFileBig, ErrNoImpl, ErrCount };
-
-static const char *errmsg[ErrCount] = {
-	NULL,
-	USAGE,
-	NULL,
-	NULL,
-	"x: invalid format\n",
-	"x: file/line is too large\n",
-	"x: not implemented\n",
-};
+enum { ErrNone, ErrBadArg, ErrIO };
 
 static void printascii(FILE *out, const unsigned char *data, unsigned long n)
 {
@@ -54,9 +42,7 @@ static int hexdump(FILE *out, FILE *in)
 	do {
 		n = fread(buf, 1, BUFSIZE, in);
 		if (ferror(in))
-			return ErrInput;
-		else if (ULONG_MAX - off < n)
-			return ErrFileBig;
+			return ErrIO;
 		else if (n < HEXCOLS) {
 			if (!n)
 				break;
@@ -65,18 +51,7 @@ static int hexdump(FILE *out, FILE *in)
 			goto padding;
 		}
 
-		if (fprintf(out, HEXFMT, off,
-		            buf [0], buf [1], buf [2], buf [3],
-		            buf [4], buf [5], buf [6], buf [7],
-		            buf [8], buf [9], buf[10], buf[11],
-		            buf[12], buf[13], buf[14], buf[15]) < HEXFMT_MINLEN)
-			return ErrOutput;
-		printascii(out, buf, HEXCOLS);
-		fputc('\n', out);
-
-		off += HEXCOLS;
-
-		for (i = HEXCOLS; i < n-HEXCOLS; i += HEXCOLS) {
+		for (i = 0; i < n-HEXCOLS; i += HEXCOLS) {
 			fprintf(out, HEXFMT, off,
 			        buf   [i], buf [i+1], buf [i+2], buf [i+3],
 			        buf [i+4], buf [i+5], buf [i+6], buf [i+7],
@@ -118,21 +93,18 @@ padding:
 
 static int incdump(FILE *out, FILE *in)
 {
-	unsigned long i, n, size = 0;
+	unsigned long i, n, sz = 0;
 
-	if (fputs("unsigned char dump[] = {", out) == EOF)
-		return ErrOutput;
+	fputs("unsigned char dump[] = {", out);
 
 	do {
 		n = fread(buf, 1, BUFSIZE, in);
 		if (ferror(in))
-			return ErrInput;
-		else if (ULONG_MAX - size < n)
-			return ErrFileBig;
+			return ErrIO;
 		else if (!n)
 			break;
 
-		if (size > 0)
+		if (sz > 0)
 			fprintf(out, ",0x%02x", buf[0]);
 		else
 			fprintf(out, "0x%02x", buf[0]);
@@ -140,19 +112,18 @@ static int incdump(FILE *out, FILE *in)
 		for (i = 1; i < n; ++i)
 			fprintf(out, ",0x%02x", buf[i]);
 
-		size += n;
+		sz += n;
 	} while (!feof(in));
 
-	fprintf(out, "};\nunsigned long dumpsize = %lu;\n", size);
+	fprintf(out, "};\nunsigned long dumpsize = %lu;\n", sz);
 
 	return ErrNone;
 }
 
 /* TODO: implement revdump */
-/* revdump _minimal_ format: <colon><hex-octets><space><space> (offset and ascii is ignored) */
 static int revdump(FILE *out, FILE *in)
 {
-	return ErrNoImpl;
+	return ErrNone;
 }
 
 int main(int argc, char *argv[])
@@ -164,16 +135,14 @@ int main(int argc, char *argv[])
 	} else if (argc == 2 && argv[1][0] == '-') {
 		if (argv[1][1] == 'i' && argv[1][2] == '\0')
 			err = incdump(stdout, stdin);
-		else if (argv[1][1] == 'r' && argv[1][2] == '\0')
-			err = revdump(stdout, stdin);
+		/* else if (argv[1][1] == 'r' && argv[1][2] == '\0')
+			err = revdump(stdout, stdin); */
 		else if (argv[1][1] == 'v' && argv[1][2] == '\0')
 			return puts(VERSION), ErrNone;
 	}
 
-	if (err == ErrInput || err == ErrOutput)
+	if (err == ErrIO)
 		perror("x");
-	else if (err != ErrNone)
-		fputs(errmsg[err], stderr);
 
 	return err;
 }

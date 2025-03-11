@@ -6,10 +6,9 @@ example: x < a.out > a.hex
 example: x -i < a.out > a.h
 
 xs - search hex string
-usage: xs HEXOCTETS
+usage: xs HEX_OCTETS
+       xs -v
 example: xs deadbeef < file.bin  # outputs xxd-like offset if found
-
-Both programs assume the use of ASCII at compile time and runtime.
 
 
 Build instructions
