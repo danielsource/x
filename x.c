@@ -1,7 +1,12 @@
-#define VERSION "x 2025-03-11 https://github.com/danielsource/x.git"
+#define VERSION "x 2025-03-12 https://github.com/danielsource/x.git"
 #define USAGE "usage: x [-i|-v]\n"
 
 #include <stdio.h>
+
+#ifdef _WIN32 /* for _setmode */
+#include <io.h>
+#include <fcntl.h>
+#endif
 
 #define HEXCOLS 16
 #define OFFSET "%08lx:"
@@ -16,7 +21,6 @@
 	" " XX XX \
 	" " XX XX \
 	" " XX XX "  "
-#define HEXFMT_MINLEN 51
 
 #define BUFSIZE 8192
 static unsigned char buf[BUFSIZE];
@@ -129,6 +133,11 @@ static int revdump(FILE *out, FILE *in)
 int main(int argc, char *argv[])
 {
 	int err = ErrBadArg;
+
+#ifdef _WIN32
+	/* Windows being annoying: I need to set binary mode for stdin */
+	_setmode(_fileno(stdin), _O_BINARY);
+#endif
 
 	if (argc <= 1) {
 		err = hexdump(stdout, stdin);

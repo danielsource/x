@@ -1,8 +1,13 @@
-#define VERSION "xs 2025-03-11 https://github.com/danielsource/x.git"
+#define VERSION "xs 2025-03-12 https://github.com/danielsource/x.git"
 #define USAGE "usage: xs HEX_OCTETS\n"
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef _WIN32 /* for _setmode */
+#include <io.h>
+#include <fcntl.h>
+#endif
 
 #define READCHUNK 8192
 
@@ -84,6 +89,11 @@ int main(int argc, char *argv[])
 	char c;
 	unsigned char *buf, *hex;
 	int ret;
+
+#ifdef _WIN32
+	/* Windows being annoying: I need to set binary mode for stdin */
+	_setmode(_fileno(stdin), _O_BINARY);
+#endif
 
 	if (argc != 2) {
 		fputs(USAGE, stderr);
