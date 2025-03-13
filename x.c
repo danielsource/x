@@ -1,5 +1,8 @@
-#define VERSION "x 2025-03-12 https://github.com/danielsource/x.git"
-#define USAGE "usage: x [-i|-v]\n"
+#define VERSION "x 2025-03-13 https://github.com/danielsource/x.git"
+#define USAGE "usage: x [-i|-r|-v]\n"
+
+/* XXX: assumes ASCII */
+/* XXX: assumes (text mode == binary mode) for stdin */
 
 #include <stdio.h>
 
@@ -29,7 +32,7 @@ static unsigned char buf[BUFSIZE];
 #error "BUFSIZE must be multiple of HEXCOLS"
 #endif
 
-enum { ErrNone, ErrBadArg, ErrIO };
+enum { ErrNone, ErrBadArg, ErrBadHex, ErrIO };
 
 static void printascii(FILE *out, const unsigned char *data, unsigned long n)
 {
@@ -42,6 +45,10 @@ static void printascii(FILE *out, const unsigned char *data, unsigned long n)
 static int hexdump(FILE *out, FILE *in)
 {
 	unsigned long i, n, rem, off = 0;
+
+#ifdef _WIN32
+	_setmode(_fileno(in), _O_BINARY);
+#endif
 
 	do {
 		n = fread(buf, 1, BUFSIZE, in);
@@ -101,6 +108,10 @@ static int incdump(FILE *out, FILE *in)
 
 	fputs("unsigned char dump[] = {", out);
 
+#ifdef _WIN32
+	_setmode(_fileno(in), _O_BINARY);
+#endif
+
 	do {
 		n = fread(buf, 1, BUFSIZE, in);
 		if (ferror(in))
@@ -124,33 +135,85 @@ static int incdump(FILE *out, FILE *in)
 	return ErrNone;
 }
 
-/* TODO: implement revdump */
+/* XXX: revdump() simply ignores the offset info,
+ * it does not have the same behavior of xxd (see fseek(3)). */
 static int revdump(FILE *out, FILE *in)
 {
-	return ErrNone;
+	char hex[HEXCOLS*2], *line, c;
+	int digits, i, l;
+	unsigned char byte;
+
+	for (;;) {
+		line = (char *)buf; /* XXX: yep */
+		if (!fgets(line, BUFSIZE, in))
+			return ferror(in) ? ErrIO : ErrNone;
+
+		while (*line++ != ':')
+			if (*line == '\0')
+				return ErrBadHex;
+
+		for (digits = 0; digits < HEXCOLS*2; ++line) {
+			if (line[0] == ' ') {
+				if (line[1] == ' ') {
+					break;
+				} else {
+					continue;
+				}
+			}
+
+			switch (*line) {
+			case 'A':case 'B':case 'C':case 'D':case 'E': case 'F':
+				*line -= 32;
+			case '0':case '1':case '2':case '3':case '4':
+			case '5':case '6':case '7':case '8':case '9':
+			case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
+				hex[digits++] = *line;
+				break;
+			default:
+				return ErrBadHex;
+			}
+		}
+
+		if (digits & 1 || digits == 0)
+			return ErrBadHex;
+
+		l = digits;
+		do {
+			byte = 0;
+			for (i = 0; i < 2; ++i) {
+				c = hex[digits - l + (1-i)];
+				switch (c) {
+				case '0':case '1':case '2':case '3':case '4':
+				case '5':case '6':case '7':case '8':case '9':
+					byte += (c - '0') * (1<<(i<<2));
+					break;
+				case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
+					byte += (c-'a' + 10) * (1<<(i<<2));
+				}
+			}
+			fwrite(&byte, 1, 1, out);
+		} while (l -= 2);
+	}
 }
 
 int main(int argc, char *argv[])
 {
 	int err = ErrBadArg;
 
-#ifdef _WIN32
-	/* Windows being annoying: I need to set binary mode for stdin */
-	_setmode(_fileno(stdin), _O_BINARY);
-#endif
-
 	if (argc <= 1) {
 		err = hexdump(stdout, stdin);
 	} else if (argc == 2 && argv[1][0] == '-') {
 		if (argv[1][1] == 'i' && argv[1][2] == '\0')
 			err = incdump(stdout, stdin);
-		/* else if (argv[1][1] == 'r' && argv[1][2] == '\0')
-			err = revdump(stdout, stdin); */
+		else if (argv[1][1] == 'r' && argv[1][2] == '\0')
+			err = revdump(stdout, stdin);
 		else if (argv[1][1] == 'v' && argv[1][2] == '\0')
 			return puts(VERSION), ErrNone;
 	}
 
-	if (err == ErrIO)
+	if (err == ErrBadArg)
+		fputs(USAGE, stderr);
+	else if (err == ErrIO)
 		perror("x");
 
 	return err;

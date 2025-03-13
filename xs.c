@@ -1,5 +1,8 @@
-#define VERSION "xs 2025-03-12 https://github.com/danielsource/x.git"
+#define VERSION "xs 2025-03-13 https://github.com/danielsource/x.git"
 #define USAGE "usage: xs HEX_OCTETS\n"
+
+/* XXX: assumes ASCII */
+/* XXX: assumes (text mode == binary mode) for stdin */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,9 +115,10 @@ int main(int argc, char *argv[])
 
 	for (l = 0; (c = argv[1][l]) != '\0'; ++l) {
 		switch (c) {
+		case 'A':case 'B':case 'C':case 'D':case 'E': case 'F':
+			c += 32;
 		case '0':case '1':case '2':case '3':case '4':
 		case '5':case '6':case '7':case '8':case '9':
-		case 'A':case 'B':case 'C':case 'D':case 'E': case 'F':
 		case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
 			break;
 		default:
@@ -153,9 +157,7 @@ int main(int argc, char *argv[])
 				hex[j] += (c - '0') * (1<<(i<<2));
 				break;
 			case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
-				c -= 32;
-			case 'A':case 'B':case 'C':case 'D':case 'E': case 'F':
-				hex[j] += (c-'A' + 10) * (1<<(i<<2));
+				hex[j] += (c-'a' + 10) * (1<<(i<<2));
 			}
 		}
 	} while (l -= 2);

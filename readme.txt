@@ -1,9 +1,10 @@
 This directory contains _naive_ implementations in C of the following:
 
 x - stupid simple hex dump (xxd(1) like)
-usage: x [-i|-v]
+usage: x [-i|-r|-v]
 example: x < a.out > a.hex
-example: x -i < a.out > a.h
+example: vim a.hex; x -r < a.hex > a.out
+example: x -i < a.out > a.c
 
 xs - search hex string
 usage: xs HEX_OCTETS
@@ -28,7 +29,3 @@ cc xs.c -o xs
 00000070: 0800 0000 0000 0000 0300 0000 0400 0000  ................
 00000080: 1803 0000 0000 0000 1803 0000 0000 0000  ................
 00000090: 1803 0000 0000 0000 1c00 0000 0000 0000  ................
-
-
----
-TODO: implement x -r
