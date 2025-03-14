@@ -147,6 +147,10 @@ static int revdump(FILE *out, FILE *in)
 	int digits, i, l;
 	unsigned char byte;
 
+#ifdef _WIN32
+	_setmode(_fileno(out), _O_BINARY);
+#endif
+
 	for (;;) {
 		line = (char *)buf; /* XXX: yep */
 		line[BUFSIZE-1] = 1;
@@ -200,7 +204,7 @@ static int revdump(FILE *out, FILE *in)
 					byte += (c-'a' + 10) * (1<<(i<<2));
 				}
 			}
-			fwrite(&byte, 1, 1, out);
+			fputc(byte, out);
 		} while (l -= 2);
 	}
 }
