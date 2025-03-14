@@ -13,7 +13,7 @@ echo "test x == xxd up to 512 bytes"
 i=0; while [ $i -le 512 ]; do
 	dd if="$bigfile" bs=1 count=$i 2>/dev/null | ./x >test/x.hex
 	dd if="$bigfile" bs=1 count=$i 2>/dev/null | xxd >test/xxd.hex
-	x -r <test/x.hex >test/x.bin
+	./x -r <test/x.hex >test/x.bin
 	xxd -r <test/xxd.hex >test/xxd.bin
 	diff test/xxd.bin test/x.bin
 	i=$((i+1))
