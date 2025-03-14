@@ -1,4 +1,4 @@
-#define VERSION "x 2025-03-13 https://github.com/danielsource/x.git"
+#define VERSION "x 2025-03-14 https://github.com/danielsource/x.git"
 #define USAGE "usage: x [-i|-r|-v]\n"
 
 /* XXX: assumes ASCII */
@@ -30,6 +30,10 @@ static unsigned char buf[BUFSIZE];
 
 #if BUFSIZE % HEXCOLS != 0
 #error "BUFSIZE must be multiple of HEXCOLS"
+#endif
+
+#if BUFSIZE < 80
+#error "BUFSIZE must be large enough for line reading"
 #endif
 
 enum { ErrNone, ErrBadArg, ErrBadHex, ErrIO };
@@ -145,8 +149,13 @@ static int revdump(FILE *out, FILE *in)
 
 	for (;;) {
 		line = (char *)buf; /* XXX: yep */
-		if (!fgets(line, BUFSIZE, in))
+		line[BUFSIZE-1] = 1;
+		if (!fgets(line, BUFSIZE, in)) {
 			return ferror(in) ? ErrIO : ErrNone;
+		} else if (line[BUFSIZE-1] == '\0') {
+			while ((i = fgetc(in)) != EOF && i != '\n');
+			return ErrBadHex;
+		}
 
 		while (*line++ != ':')
 			if (*line == '\0')
