@@ -1,8 +1,5 @@
-#define VERSION "xs 2025-03-13 https://github.com/danielsource/x.git"
-#define USAGE "usage: xs HEX_OCTETS\n"
-
-/* XXX: assumes ASCII */
-/* XXX: assumes (text mode == binary mode) for stdin */
+#define VERSION "xs 2025-03-17 https://github.com/danielsource/x.git"
+#define USAGE "usage: xs HEX_OCTETS [< FILE]\n"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,38 +44,38 @@ static unsigned long readbin(unsigned char **out, FILE *f)
 #define OFFSETSTEP 16
 
 static int printhexmatch(
-		const unsigned char *hay,
-		const unsigned char *n,
-		unsigned long haylen,
-		unsigned long nlen)
+		const unsigned char *data,
+		const unsigned char *pat,
+		unsigned long datalen,
+		unsigned long patlen)
 {
-	const unsigned char *hayorig, *hp, *np;
+	const unsigned char *dataorig, *d, *p;
 	unsigned long off = 0;
 	int match = 0;
 
-	hayorig = hay;
-	hp = hay;
-	np = n;
+	dataorig = data;
+	d = data;
+	p = pat;
 
-	while (nlen <= haylen) {
-		while (*np == *hp) {
-			if (np-n == nlen-1) {
+	while (patlen <= datalen) {
+		while (*p == *d) {
+			if (p-pat == patlen-1) {
 				++match;
-				hay += nlen-1;
-				haylen -= nlen-1;
+				data += patlen-1;
+				datalen -= patlen-1;
 
-				off = hay-hayorig - (nlen-1);
+				off = data-dataorig - (patlen-1);
 				fprintf(stdout, "%08lx %lx\n",
 					off/OFFSETSTEP * OFFSETSTEP,
 					off % OFFSETSTEP);
 				break;
 			}
-			++hp;
-			++np;
+			++d;
+			++p;
 		}
-		hp = ++hay;
-		--haylen;
-		np = n;
+		d = ++data;
+		--datalen;
+		p = pat;
 	}
 
 	return match;
@@ -88,13 +85,12 @@ int main(int argc, char *argv[])
 {
 	enum { ErrNone, ErrNoMatch, ErrBadArg, ErrIO };
 
-	unsigned long i, j, l, buflen, hexlen;
+	unsigned long i, l, buflen, patternlen;
 	char c;
-	unsigned char *buf, *hex;
+	unsigned char *buf, *pattern;
 	int ret;
 
 #ifdef _WIN32
-	/* Windows being annoying: I need to set binary mode for stdin */
 	_setmode(_fileno(stdin), _O_BINARY);
 #endif
 
@@ -115,11 +111,11 @@ int main(int argc, char *argv[])
 
 	for (l = 0; (c = argv[1][l]) != '\0'; ++l) {
 		switch (c) {
-		case 'A':case 'B':case 'C':case 'D':case 'E': case 'F':
+		case 'A':case 'B':case 'C':case 'D':case 'E':case 'F':
 			c += 32;
 		case '0':case '1':case '2':case '3':case '4':
 		case '5':case '6':case '7':case '8':case '9':
-		case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
+		case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':
 			break;
 		default:
 			return ErrBadArg;
@@ -127,9 +123,9 @@ int main(int argc, char *argv[])
 	}
 	if (!l || l % 2 != 0)
 		return ErrBadArg;
-	hexlen = l/2;
+	patternlen = l/2;
 
-	if (!(hex = malloc(hexlen))) {
+	if (!(pattern = malloc(patternlen))) {
 		perror("xs");
 		return ErrIO;
 	}
@@ -137,33 +133,38 @@ int main(int argc, char *argv[])
 	buflen = readbin(&buf, stdin);
 	if (!buf) {
 		perror("xs");
-		free(hex);
+		free(pattern);
 		return ErrIO;
-	} else if (buflen < l) {
+	} else if (buflen < patternlen) {
 		if (buf)
 			free(buf);
-		free(hex);
+		free(pattern);
 		return ErrBadArg;
 	}
 
+	i = patternlen-1;
 	do {
-		j = l/2 - 1;
-		hex[j] = 0;
-		for (i = 0; i < 2; ++i) {
-			c = argv[1][l - (i+1)];
-			switch (c) {
-			case '0':case '1':case '2':case '3':case '4':
-			case '5':case '6':case '7':case '8':case '9':
-				hex[j] += (c - '0') * (1<<(i<<2));
-				break;
-			case 'a':case 'b':case 'c':case 'd':case 'e': case 'f':
-				hex[j] += (c-'a' + 10) * (1<<(i<<2));
-			}
+		switch (argv[1][l-2]) {
+		case '0':case '1':case '2':case '3':case '4':
+		case '5':case '6':case '7':case '8':case '9':
+			pattern[i] = (argv[1][l-2] - '0') << 4;
+			break;
+		case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':
+			pattern[i] = (argv[1][l-2] - 'a' + 10) << 4;
 		}
+		switch (argv[1][l-1]) {
+		case '0':case '1':case '2':case '3':case '4':
+		case '5':case '6':case '7':case '8':case '9':
+			pattern[i] += argv[1][l-1] - '0';
+			break;
+		case 'a':case 'b':case 'c':case 'd':case 'e':case 'f':
+			pattern[i] += argv[1][l-1] - 'a' + 10;
+		}
+		--i;
 	} while (l -= 2);
 
-	ret = printhexmatch(buf, hex, buflen, hexlen) > 0 ? ErrNone : ErrNoMatch;
+	ret = printhexmatch(buf, pattern, buflen, patternlen) > 0 ? ErrNone : ErrNoMatch;
 	free(buf);
-	free(hex);
+	free(pattern);
 	return ret;
 }

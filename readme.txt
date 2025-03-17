@@ -1,13 +1,13 @@
 This directory contains _naive_ implementations in C of the following:
 
 x - stupid simple hex dump (xxd(1) like)
-usage: x [-i|-r|-v]
+usage: x [-i|-r|-v] [< FILE]
 example: x < a.out > a.hex
 example: vim a.hex; x -r < a.hex > a.out
 example: x -i < a.out > a.c
 
 xs - search hex string
-usage: xs HEX_OCTETS
+usage: xs HEX_OCTETS [< FILE]
        xs -v
 example: xs deadbeef < file.bin  # outputs xxd-like offset if found
 
